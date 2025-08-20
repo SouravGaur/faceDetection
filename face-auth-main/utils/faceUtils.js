@@ -23,7 +23,7 @@ export async function getFaceEmbedding(imageUrl) {
   const resizedImg = faceapi.resizeResults(img, { width: 320, height: 320 });
   const detection = await faceapi
     .detectSingleFace(resizedImg, new faceapi.TinyFaceDetectorOptions())
-    .withFaceLandmarks()
+    // .withFaceLandmarks()
     .withFaceDescriptor();
   // const detection = await faceapi
   //   .detectSingleFace(img)
