@@ -26,7 +26,7 @@ const FaceAuth = () => {
       stream.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null; // Explicitly null out the srcObject
     }
-
+    stopCamera();
     setCameraStarted(false);
     setCapturedPhoto(null);
     setPhotoBlob(null);
@@ -43,16 +43,37 @@ const FaceAuth = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        // videoRef.current.play().catch((err) => {
+        //   console.error("Video play failed:", err);
+        // });
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch((err) => {
+            console.error("Video play failed:", err);
+          });
+        };
+
         setCameraStarted(true);
-        setCapturedPhoto(null); // Clear any previous photo when starting camera
-        setPhotoBlob(null); // Clear the associated blob
+        setCapturedPhoto(null);
+        setPhotoBlob(null);
       }
     } catch (err) {
+      // videoRef.current.play();
+      // setCameraStarted(true);
+      // setCapturedPhoto(null); // Clear any previous photo when starting camera
+      // setPhotoBlob(null); // Clear the associated blob
+
       console.error("Camera access denied:", err);
       setMessage("Please allow camera access to use this feature.");
       setCameraStarted(false);
     }
+  };
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraStarted(false);
   };
 
   // Capture a still photo from the video stream
@@ -70,9 +91,11 @@ const FaceAuth = () => {
     canvas.toBlob((blob) => {
       setCapturedPhoto(URL.createObjectURL(blob));
       setPhotoBlob(blob);
+
+      // stopCamera();
     }, "image/jpeg");
 
-    // Stop the camera stream to save resources
+    //Stop the camera stream to save resources
     const stream = video.srcObject;
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -138,6 +161,75 @@ const FaceAuth = () => {
       resetState(); // Reset state on error
     }
   };
+
+  const handleAutoLogin = async () => {
+    if (!videoRef.current) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth || 320;
+    canvas.height = videoRef.current.videoHeight || 240;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+
+      setCapturedPhoto(URL.createObjectURL(blob));
+      setPhotoBlob(blob);
+
+      // ab direct login API call
+      try {
+        const formData = new FormData();
+        formData.append("photo", blob, "face.jpg");
+
+        const res = await fetch("http://localhost:5009/api/auth/login", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          setMessage(`Login successful! Welcome, ${data.username || "user"}!`);
+          setIsLoggedIn(true);
+        } else {
+          setMessage(data.message || "Authentication failed.");
+          resetState();
+        }
+      } catch (err) {
+        setMessage("Error: " + err.message);
+        resetState();
+      }
+      // 🔴 YAHAN CAMERA STOP KARNA HAI 🔴
+    }, "image/jpeg");
+  };
+  useEffect(() => {
+    if (authMode === "login" && cameraStarted === false) {
+      startVideo(); // camera start
+    }
+  }, [authMode]);
+  useEffect(() => {
+    if (authMode === "login" && cameraStarted) {
+      const timer = setTimeout(() => {
+        handleAutoLogin(); // अब 5 sec बाद capture होगा
+      }, 2000);
+
+      return () => clearTimeout(timer); // cleanup
+    }
+  }, [authMode, cameraStarted]);
+  // useEffect(() => {
+  //   if (authMode === "login" && !cameraStarted) {
+  //     startVideo();
+
+  //     const timer = setTimeout(() => {
+  //       handleAutoLogin();
+  //     }, 5000); // 5 sec wait karega
+
+  //     return () => {
+  //       clearTimeout(timer);
+  //       resetState();
+  //     }; // cleanup
+  //   }
+  // }, [authMode, cameraStarted]);
 
   // If the user is logged in, show a simple home page
   if (isLoggedIn) {
@@ -251,7 +343,7 @@ const FaceAuth = () => {
             </button>
           )}
 
-          {cameraStarted && (
+          {cameraStarted && authMode === "register" && (
             <button
               type="button"
               onClick={capturePhoto}
