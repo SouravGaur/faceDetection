@@ -20,10 +20,12 @@ app.use("/api/auth", authRoutes);
 app.get("/", (req, res) => {
   res.send("Welcome to the Face Authentication API");
 });
+
 const startServer = async () => {
+  const PORT = process.env.PORT || 5002;
   await connectDB();
   await loadModels();
-  app.listen(5009, () => console.log("🚀 Server running on port 5009"));
+  app.listen(PORT, () => console.log("🚀 Server running on port 5009"));
 };
 
 startServer();
